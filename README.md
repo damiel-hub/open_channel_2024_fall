@@ -46,7 +46,7 @@
 
 4. **Modify the `watlab.py` Code**  
    - Open the `watlab.py` script located in `open_channel_2024_fall-main\W13_environment_setup`.  
-   - Replace its content with the updated code provided in the same folder.
+   - Replace its content with the original code.
 
 5. **Run WatLab**  
    - Open the **`watlab-first-script.py`** file using VS Code.  
