@@ -1059,6 +1059,90 @@ class Plotter():
         plt.plot(abscisses,profile_values,label=label)
         plt.legend()
         
+    def plot_profile_along_polyline(self, picture_file_path: str, variable_name: str, x_coordinate=None, y_coordinate=None, new_fig=False, n_points=50, ds=None, label="") -> None:
+        """ 
+        Plots the profile of the selected variable along a polyline defined by given coordinate points.
+
+        :param picture_file_path: The path to the image file containing the data to plot.
+        :type picture_file_path: str
+        :param variable_name: The name of the variable to plot.
+        :type variable_name: str
+        :param x_coordinate: A list or array of x-coordinates defining the polyline.
+                            Example: [x_P1, x_P2, x_P3, ...]
+        :type x_coordinate: list or np.ndarray
+        :param y_coordinate: A list or array of y-coordinates defining the polyline.
+                            Example: [y_P1, y_P2, y_P3, ...]
+        :type y_coordinate: list or np.ndarray
+        :param new_fig: If True, creates a new figure for the plot.
+                        If False, plots on the current figure. Defaults to False.
+        :type new_fig: bool, optional
+        :param n_points: The number of interpolation points along the polyline. Defaults to 50.
+                        Ignored if `ds` is provided.
+        :type n_points: int, optional
+        :param ds: The step size between points along the polyline. If provided, `n_points` is calculated based on `ds`.
+                Defaults to None.
+        :type ds: float, optional
+        :param label: The label for the plot. Defaults to an empty string "".
+        :type label: str, optional
+
+        :raises ValueError: If `n_points` or `ds` are not positive.
+        """
+        if new_fig:
+            plt.figure()
+            plt.ion()
+        if not label:
+            label=variable_name
+        
+        data = np.asarray(self.__extract_data_from_picture_file(picture_file_path)[variable_name])
+        values_at_nodes = self.__set_value_at_node(data)
+        interpolated_plane_value = mtri.LinearTriInterpolator(self.__triangle_organization,values_at_nodes)
+        # Ensure x_coordinate and y_coordinate are numpy arrays
+        x_coordinate = np.asarray(x_coordinate)
+        y_coordinate = np.asarray(y_coordinate)
+
+        # Validate coordinates
+        if x_coordinate.size != y_coordinate.size:
+            raise ValueError("x_coordinate and y_coordinate must have the same length.")
+        if x_coordinate.size < 2:
+            raise ValueError("At least two coordinate points are required to define a polyline.")
+
+        # Compute the cumulative distances along the polyline
+        segment_lengths = np.sqrt(np.diff(x_coordinate)**2 + np.diff(y_coordinate)**2)
+        cumulative_lengths = np.insert(np.cumsum(segment_lengths), 0, 0)
+
+        # Total length of the polyline
+        total_length = cumulative_lengths[-1]
+
+        # Determine number of points based on ds if provided
+        if ds is not None:
+            if ds <= 0:
+                raise ValueError("Step size `ds` must be positive.")
+            n_points_calculated = int(np.ceil(total_length / ds)) + 1
+            n_points = n_points_calculated
+            print(f"Step size `ds` provided. Calculated number of points: {n_points}")
+        else:
+            # Use provided n_points
+            if n_points <= 0:
+                raise ValueError("Number of points `n_points` must be positive.")
+            n_points = n_points
+
+        # Generate n_points equally spaced distances along the polyline
+        distance_along_line = np.linspace(0, total_length, n_points)
+
+        # Interpolate x and y coordinates along the polyline
+        x_interp = np.interp(distance_along_line, cumulative_lengths, x_coordinate)
+        y_interp = np.interp(distance_along_line, cumulative_lengths, y_coordinate)
+
+        # Interpolate the variable values at the interpolated points
+        profile_values = interpolated_plane_value(x_interp, y_interp)
+
+        # Handle potential NaN values from interpolation
+        valid_indices = ~np.isnan(profile_values)
+        distance_valid = distance_along_line[valid_indices]
+        profile_values_valid = profile_values[valid_indices]   
+        plt.plot(distance_valid, profile_values_valid, label=label)
+        plt.legend()
+
     def plot(self, picture_file_path, variable_name: str, opacity=1, colorbar_values=None):
         """
         Plots the specified variable from the provided picture file with various customization options.
@@ -1080,7 +1164,6 @@ class Plotter():
         """
         plt.figure()
         plt.ion()
-        
         def __on_clicked(event):
             global coords_x
             global coords_y
@@ -1120,7 +1203,7 @@ class Plotter():
         try : 
             TC = plt.tricontourf(self.__triangle_organization,values_at_nodes,alpha=opacity,cmap=cm.turbo,levels=levels,antialiased=True,extend="max")
             plt.gca().set_aspect('equal', adjustable='box')
-            cbar= plt.colorbar(TC,location="bottom")
+            cbar= plt.colorbar(TC,location="right")
             cbar.ax.locator_params(nbins=5)
             cbar.set_label(variable_name)
         except ValueError:
@@ -1169,6 +1252,48 @@ class Plotter():
         self.plot(pic_path, variable_name=variable_name, opacity=opacity, colorbar_values=colorbar_values)
         ax = plt.gca()
         ctx.add_basemap(ax, crs=csr,source=ctx.providers.OpenStreetMap.Mapnik)
+
+    def plot_on_hillshade(self, pic_path, variable_name:str, dem_path, opacity=0.5, colorbar_values=None):
+        """
+        Plots the specified variable on a map with a hillshade base map derived from a DEM.
+
+        :param pic_path: The path to the image file containing the data to plot.
+        :type pic_path: str
+        :param dem_path: The path to the DEM TIFF file.
+        :type variable_name: str
+        :param opacity: A value between 0 and 1 to set the opacity of the plot. Defaults to 0.5.
+        :type dem_path: str
+        :param variable_name: The name of the variable to plot.
+        :type opacity: float, optional
+        :param colorbar_values: The boundary values for the colorbar. Defaults to None, which automatically scales based on data range.
+        :type colorbar_values: list, optional
+        """
+        self.plot(pic_path, variable_name=variable_name, opacity=opacity, colorbar_values=colorbar_values)
+        ax = plt.gca()
+
+        import rasterio
+        from rasterio.plot import show
+        from matplotlib.colors import LightSource
+
+        # Read the DEM data
+        with rasterio.open(dem_path) as dem_dataset:
+            dem_data = dem_dataset.read(1)
+            transform = dem_dataset.transform
+
+            # Generate hillshade
+            ls = LightSource(azdeg=315, altdeg=45)
+            hillshade = ls.hillshade(dem_data, vert_exag=1, dx=transform[0], dy=-transform[4])
+
+            # Get the extent of the DEM
+            xmin, ymin, xmax, ymax = dem_dataset.bounds
+
+        # Display the hillshade as the base map
+        ax.imshow(hillshade, cmap='gray', extent=(xmin, xmax, ymin, ymax), origin='upper', alpha=1)
+
+        # Ensure the plot uses the correct CRS
+        ax.set_aspect('equal')
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
     
     def create_video(self, pic_path_template, video_filename, time_step, variable_name:str, opacity=1, colorbar_values = None, csr=31370, fps=5, on_map=False):
         """ Creates a video from a sequence of image files, with options to overlay data on a map.
@@ -1208,6 +1333,59 @@ class Plotter():
         for i, file in enumerate(file_list):
             if on_map:
                 self.plot_on_map(file, variable_name=variable_name,colorbar_values=colorbar_values, opacity=opacity, csr=csr,show=False)
+            else:
+                self.plot(file, variable_name=variable_name,colorbar_values=colorbar_values, opacity=opacity,show=False)
+            plt.savefig("frame_{:d}.png".format(i),dpi=300)
+            plt.close()
+            frame_list.append("frame_{:d}.png".format(i))
+            print("Proceeding:" + str(np.around(i/n_files*100,2))+"%")
+
+        images = []
+        for filename in frame_list:
+            images.append(imageio.imread(filename))
+
+        imageio.mimsave("{}.mp4".format(video_filename), images, fps=fps)
+        print("Your video is ready")
+        for frame in frame_list:
+            os.remove(frame)
+
+    def create_video_on_hillshade(self, pic_path_template, video_filename, time_step, variable_name:str, opacity=0.5, colorbar_values = None, fps=5, dem_path=False):
+        """
+        Creates a video from a sequence of image files, with options to overlay data on a hillshade map.
+
+        :param pic_path_template: Template for the file paths of the images. 
+            Example: "PathToFiles/pic_{:d}_{:02d}.txt"
+        :type pic_path_template: str
+        :param video_filename: Name of the output video file (without extension).
+        :type video_filename: str
+        :param time_step: Time interval (in seconds) between consecutive images.
+        :type time_step: int
+        :param variable_name: Name of the variable to plot. Select the desired variable from the output file.
+        :type variable_name: str
+        :param opacity: Opacity of the plot, a value between 0 and 1. Defaults to 0.5.
+        :type opacity: float, optional
+        :param colorbar_values: Boundary values for the colorbar. Defaults to None, which automatically scales based on the data range.
+        :type colorbar_values: list or None, optional
+        :param fps: Frames per second for the output video. Defaults to 5.
+        :type fps: int, optional
+        :param dem_path: Path to the DEM file for generating hillshade overlays. Defaults to None.
+        :type dem_path: str or None, optional
+        """
+        file_list = []
+        time_second = 0
+        time_hundreds = 00
+
+        while os.path.exists(pic_path_template.format(time_second,time_hundreds)):
+            file_list.append(pic_path_template.format(time_second,time_hundreds))
+            time_second += time_step
+
+        frame_list = []
+        n_files = len(file_list)
+        print("Building Video frames")
+
+        for i, file in enumerate(file_list):
+            if dem_path:
+                self.plot_on_hillshade(file, variable_name=variable_name,colorbar_values=colorbar_values, dem_path = dem_path, opacity=opacity)
             else:
                 self.plot(file, variable_name=variable_name,colorbar_values=colorbar_values, opacity=opacity,show=False)
             plt.savefig("frame_{:d}.png".format(i),dpi=300)
