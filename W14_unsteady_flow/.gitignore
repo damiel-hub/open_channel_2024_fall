@@ -1,0 +1,10 @@
+# Ignore all .mp4 files
+*.mp4
+
+# Ignore the outputs_unsteady folder
+outputs_unsteady/
+
+# Ignore the inputs_unsteady folder
+inputs_unsteady/
+
+log.txt
