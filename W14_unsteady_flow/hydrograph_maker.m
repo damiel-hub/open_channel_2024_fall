@@ -19,6 +19,7 @@ ylabel('Discharge (cms)')
 title('Hydrograph')
 grid on
 
+print('hydrograph.png','-dpng','-r300')
 
 %% Export hydrograph to watlab format
 % Parameters (Important!!!)

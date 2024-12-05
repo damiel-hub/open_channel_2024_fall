@@ -8,3 +8,5 @@ outputs_unsteady/
 inputs_unsteady/
 
 log.txt
+
+*.pptx
