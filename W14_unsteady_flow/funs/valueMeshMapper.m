@@ -80,7 +80,7 @@ function [xMesh, yMesh, valueMesh] = valueMeshMapper(pic_path, variable_name, dx
         % Custom colormap function (ensure this function is on your MATLAB path)
         colmapNew = powlawColormap(parula(100), 0.5, 0);
 
-        figure
+        
         if ~isempty(dem_path)
             % Custom function to read GeoTIFF data (ensure this function is on your MATLAB path)
             [xMesh_dem, yMesh_dem, zMesh_dem] = readGeoTiff(dem_path);
@@ -89,6 +89,8 @@ function [xMesh, yMesh, valueMesh] = valueMeshMapper(pic_path, variable_name, dx
             % Custom function to freeze colors (ensure this function is on your MATLAB path)
             freezeColors
             hold on
+        else
+            figure
         end
         
         imagesc(xMesh_coordinate, yMesh_coordinate, valueMesh, 'AlphaData', ~isnan(valueMesh));
