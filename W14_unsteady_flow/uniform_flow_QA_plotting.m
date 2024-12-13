@@ -4,7 +4,6 @@ crossSectionPath = 'shape\cross_section';
 lineXY = m_shaperead(crossSectionPath).ncst{1};
 [xMesh,yMesh,zMesh] = readGeoTiff(demPath);
 
-figure
 lightterrain2D_imagesc(xMesh,yMesh,zMesh)
 hold on
 plot(lineXY(:,1),lineXY(:,2),'r.-')
