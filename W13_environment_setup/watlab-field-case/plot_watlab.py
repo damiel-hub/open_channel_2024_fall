@@ -5,7 +5,8 @@ import gis
 mesh_path = 'msh/laonong_gmsh_size_10.msh'
 DEM_path = 'raster/raw/laonongDEM_5m.tif'
 profile_shp_path = 'shape/plotting/profile_polyline/polyline.shp'
-pic_path_template = 'outputs_laonong/pic_{:d}_{:02d}.txt'
+outputFolder = 'outputs_laonong'
+pic_path_template = outputFolder + '/pic_{:d}_{:02d}.txt'
 
 mesh = watlab.Mesh(mesh_path)
 mesh.set_nodes_elevation_from_tif(DEM_path)
@@ -21,7 +22,7 @@ time3 = "720_00"
 time4 = "920_00"
 time5 = "960_00"
 
-outputFolder = "outputs_laonong"
+
 #path of the pic at the corresponding times
 myPic0 = outputFolder + "\\pic_"+ time0 +".txt"
 myPic1 = outputFolder + "\\pic_"+ time1 +".txt"
